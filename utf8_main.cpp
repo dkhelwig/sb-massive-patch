@@ -73,7 +73,7 @@ int utf8_main(int argc, char* argv[])
 	{
 		if (argc < 3)
 		{
-			std::cout << "Syntax:\nsb-massive-patch <unpacked-root> <patch-root>" << std::endl;
+			std::cerr << "Syntax:\nsb-massive-patch <unpacked-root> <patch-root>" << std::endl;
 			return 1;
 		}
 
@@ -82,6 +82,7 @@ int utf8_main(int argc, char* argv[])
 
 		std::cout << "Enumerating: " << unpackedRoot << std::endl;
 
+		uint32_t enumerated{ 0 }, patched{ 0 }, failed{ 0 };
 		for (fs::recursive_directory_iterator next{ unpackedRoot }, end; next != end; ++next)
 		{
 			if (!fs::is_regular_file(next->status()))
@@ -95,6 +96,8 @@ int utf8_main(int argc, char* argv[])
 			{
 				try
 				{
+					++enumerated;
+					std::cout << "Checking \"" << file << "\"" << std::endl;
 #ifdef _WIN32
 					std::ifstream in{ file.wstring(), std::ios::binary };
 #else
@@ -108,13 +111,9 @@ int utf8_main(int argc, char* argv[])
 
 					if (printable == asJson.end())
 					{
-						// No /printable
+						// No /printable, maybe not an object?
 						continue;
 					}
-
-					auto originalJson = asJson;
-
-					*printable = true;
 
 					// Generate patch file path
 					auto following = std::mismatch(file.begin(), file.end(), unpackedRoot.begin(), unpackedRoot.end()).first;
@@ -128,22 +127,34 @@ int utf8_main(int argc, char* argv[])
 
 					patchPath += ".patch";
 
-					if (!fs::create_directories(patchPath.parent_path()))
+					auto patchPathParent = patchPath.parent_path();
+
+					if (!fs::exists(patchPathParent) && !fs::create_directories(patchPathParent))
 					{
-						throw std::runtime_error("Failed to create parent directory structure");
+						std::cerr << "Error: Failed to create directory structure \"" << patchPathParent << "\"" << std::endl;
 					}
 
-					std::cout << "Writing: " << patchPath << std::endl;
+					std::cout << "Writing patch: \"" << patchPath << "\"" << std::endl;
 
+					// Make a copy
+					auto originalJson = asJson;
+
+					// Change the value in 'asJson'
+					*printable = true;
+
+					// Diff and save
 					stringToFile(patchPath, json::diff(originalJson, asJson).dump());
+					++patched;
 				}
 				catch (std::exception const & e)
 				{
-					std::cout << file << " failed to parse: " << e.what() << std::endl;
+					++failed;
+					std::cerr << "Exception file \"" << file << "\" : " << e.what() << std::endl;
 				}
 			}
 		}
 
+		std::cout << "Complete\nenumerated: " << enumerated << " patched: " << patched << " failed: " << failed << std::endl;
 		return 0;
 	}
 	catch (std::exception const & e)
