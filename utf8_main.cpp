@@ -47,6 +47,34 @@ std::string stringFromFile(fs::path path)
 		throw std::runtime_error("Read failed");
 	}
 
+	// strip comments in style //
+	std::string::size_type commentBegin, commentEnd{ 0 };
+	
+	while ((commentBegin = ret.find("//", commentEnd)) != std::string::npos)
+	{
+		commentEnd = ret.find_first_of("\r\n", commentBegin);
+		if (commentEnd == std::string::npos)
+		{
+			commentEnd = ret.size();
+		}
+		ret.replace(commentBegin, commentEnd - commentBegin, std::string());
+		commentEnd = commentBegin;
+	}
+
+	// strip comments in style /* */
+	commentEnd = 0;
+
+	while ((commentBegin = ret.find("/*", commentEnd)) != std::string::npos)
+	{
+		commentEnd = ret.find("*/");
+		if (commentEnd == std::string::npos)
+		{
+			commentEnd = ret.size();
+		}
+		ret.replace(commentBegin, commentEnd + 2 - commentBegin, std::string());
+		commentEnd = commentBegin;
+	}
+
 	return ret;
 }
 
@@ -98,14 +126,9 @@ int utf8_main(int argc, char* argv[])
 				{
 					++enumerated;
 					std::cout << "Checking \"" << file << "\"" << std::endl;
-#ifdef _WIN32
-					std::ifstream in{ file.wstring(), std::ios::binary };
-#else
-					std::ifstream in{ file.string(), std::ios::binary };
-#endif
 
 					// Parse as json (throws on failure)
-					auto asJson = json::parse(in);
+					auto asJson = json::parse(stringFromFile(file));
 
 					auto printable = asJson.find("printable");
 
