@@ -130,14 +130,7 @@ int utf8_main(int argc, char* argv[])
 					// Parse as json (throws on failure)
 					auto asJson = json::parse(stringFromFile(file));
 
-					auto printable = asJson.find("printable");
-
-					if (printable == asJson.end())
-					{
-						// No /printable, maybe not an object?
-						continue;
-					}
-
+				
 					// Generate patch file path
 					auto following = std::mismatch(file.begin(), file.end(), unpackedRoot.begin(), unpackedRoot.end()).first;
 					
@@ -162,8 +155,33 @@ int utf8_main(int argc, char* argv[])
 					// Make a copy
 					auto originalJson = asJson;
 
-					// Change the value in 'asJson'
-					*printable = true;
+					auto printable = asJson.find("printable");
+
+					if (printable != asJson.end())
+					{
+						// Change the value in 'asJson'
+						*printable = true;
+					}
+					else
+					{
+						asJson["printable"] = true;
+					}
+					
+					// Change the value of 'cateogory' to 'decorative' if it is not one of the following
+					auto category = asJson.find("category");
+
+					if (category != asJson.end() && category.value().is_string())
+					{
+						std::string val = category.value();
+						if (val != "door" && val != "light" && val != "furniture" && val != "decorative" && val != "storage" && val != "wire")
+						{
+							category.value() = "decorative";
+						}
+					}
+					else
+					{
+						asJson["category"] = "decorative";
+					}
 
 					// Diff and save
 					stringToFile(patchPath, json::diff(originalJson, asJson).dump());
